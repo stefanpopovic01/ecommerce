@@ -1,0 +1,340 @@
+Table users {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  email varchar [unique, not null]
+  password varchar(128) [not null]
+  full_name varchar [not null]
+  phone varchar
+  role user_role [not null, default: 'customer']
+  email_verified_at timestamp
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+enum user_role {
+  customer
+  admin
+  staff
+}
+
+Table addresses {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id, not null]
+  label varchar // for example Home, Work etc
+  full_name varchar [not null]
+  line1 varchar [not null] // main street address
+  line2 varchar // optional extra bit: apartment, floor
+  city varchar [not null]
+  state varchar
+  postal_code varchar [not null]
+  country varchar(2) [not null, note: 'ISO 3166-1 alpha-2, e.g. RS']
+  phone varchar
+  is_default_shipping boolean [not null, default: false]
+  is_default_billing boolean [not null, default: false]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    user_id [note: 'partial unique where is_default_shipping = true (enforced in Django Meta)']
+    user_id [note: 'partial unique where is_default_billing = true (enforced in Django Meta)']
+  }
+}
+
+Table categories {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  parent_id uuid [ref: >? categories.id]
+  name varchar [not null]
+  slug varchar [unique, not null]
+  description text
+  sort_order integer [not null, default: 0]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table products {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  category_id uuid [ref: >? categories.id]
+  name varchar [not null]
+  slug varchar [unique, not null]
+  description text
+  status product_status [not null, default: 'draft']
+  attributes jsonb
+  meta_title varchar
+  meta_description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+enum product_status {
+  draft
+  active
+  archived
+}
+
+Table product_variants {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  product_id uuid [ref: > products.id, not null]
+  sku varchar [unique, not null]
+  price numeric(10, 2) [not null]
+  compare_at_price numeric(10, 2) [note: 'must be > price when set']
+  attributes jsonb [note: 'distinguishing options, e.g. {"size": "M", "color": "crna"}']
+  weight_grams integer
+  is_active boolean [not null, default: true]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table product_images {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  product_id uuid [ref: > products.id, not null]
+  variant_id uuid [ref: >? product_variants.id]
+  public_id varchar [not null, note: 'Cloudinary public_id; URLs built per size']
+  alt_text varchar
+  sort_order integer [not null, default: 0]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table inventory {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  variant_id uuid [ref: - product_variants.id, unique, not null]
+  quantity integer [not null, default: 0]
+  reserved_quantity integer [not null, default: 0]
+  low_stock_threshold integer [not null, default: 5]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table reviews {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  product_id uuid [ref: > products.id, not null]
+  user_id uuid [ref: > users.id, not null]
+  order_item_id uuid [ref: >? order_items.id]
+  rating integer [not null]
+  title varchar
+  body text
+  is_approved boolean [not null, default: false]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table carts {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: >? users.id]
+  session_token varchar [unique]
+  status cart_status [not null, default: 'active']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+enum cart_status {
+  active
+  converted
+  abandoned
+}
+
+Table cart_items {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  cart_id uuid [ref: > carts.id, not null]
+  variant_id uuid [ref: > product_variants.id, not null]
+  quantity integer [not null, default: 1]
+  price_at_add numeric(10, 2) [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table wishlists {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id, not null]
+  variant_id uuid [ref: > product_variants.id, not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (user_id, variant_id) [unique]
+  }
+}
+
+Table orders {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: >? users.id]
+  order_number varchar [not null, unique]
+  status order_status [not null, default: 'pending']
+  email varchar [not null]
+  phone varchar
+  subtotal numeric(10,2) [not null]
+  discount_total numeric(10,2) [not null, default: 0]
+  tax_total numeric(10,2) [not null, default: 0]
+  shipping_total numeric(10,2) [not null, default: 0]
+  grand_total numeric(10,2) [not null]
+  currency varchar [default: 'RSD', not null]
+  shipping_address jsonb [not null]
+  billing_address jsonb [not null]
+  shipping_method_id uuid [ref: >? shipping_methods.id]
+  shipping_method_name_snapshot varchar
+  reserved_until timestamp
+  placed_at timestamp
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+enum order_status {
+  pending
+  paid
+  packed
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+Table order_items {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  order_id uuid [ref: > orders.id, not null]
+  variant_id uuid [ref: > product_variants.id, not null]
+  product_name_snapshot varchar [not null]
+  sku_snapshot varchar [not null]
+  variant_attributes_snapshot jsonb [note: 'e.g. {"size": "M", "color": "crna"}']
+  unit_price numeric(10, 2) [not null]
+  quantity integer [not null]
+  line_total numeric(10, 2) [not null]
+  created_at timestamp [default: `now()`]
+}
+
+Table order_status_history {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  order_id uuid [ref: > orders.id, not null]
+  status order_status [not null]
+  note text
+  changed_by uuid [ref: >? users.id]
+  created_at timestamp [default: `now()`]
+}
+
+Table shipping_methods {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  name varchar [not null]
+  price numeric(10, 2) [not null]
+  estimated_days_min integer
+  estimated_days_max integer
+  is_active boolean [not null, default: true]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table shipments {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  order_id uuid [ref: > orders.id, not null]
+  tracking_number varchar
+  carrier varchar
+  shipped_at timestamp
+  delivered_at timestamp
+  status shipment_status [not null, default: 'pending']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (carrier, tracking_number) [unique]
+  }
+}
+
+enum shipment_status {
+  pending
+  in_transit
+  delivered
+  returned
+}
+
+Table payments {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  order_id uuid [ref: > orders.id, not null]
+  provider varchar [not null]
+  provider_charge_id varchar
+  idempotency_key varchar [unique, not null]
+  amount numeric(10, 2) [not null]
+  currency varchar [default:  'RSD', not null]
+  status payment_status [not null, default: 'pending']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (provider, provider_charge_id) [unique]
+  }
+}
+
+enum payment_status {
+  pending
+  succeeded
+  failed
+  refunded
+  partially_refunded
+}
+
+Table payment_events {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  provider varchar [not null]
+  payment_id uuid [ref: >? payments.id]
+  provider_event_id varchar [not null]
+  event_type varchar [not null]
+  payload jsonb
+  processed_at timestamp
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (provider, provider_event_id) [unique]
+  }
+}
+
+Table discount_codes {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  code varchar [unique, not null]
+  type code_type [not null]
+  value numeric(10, 2) [not null]
+  min_order_amount numeric(10, 2)
+  starts_at timestamp
+  ends_at timestamp
+  usage_limit integer
+  usage_limit_per_user integer
+  is_active boolean [not null, default: true]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+enum code_type {
+  percentage
+  fixed_amount
+  free_shipping
+}
+
+Table discount_usages {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  discount_code_id uuid [ref: > discount_codes.id, not null]
+  user_id uuid [ref: >? users.id]
+  order_id uuid [ref: > orders.id, not null]
+  used_at timestamp [default: `now()`]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (discount_code_id, order_id) [unique]
+  }
+}
+
+Table collections {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  name varchar [not null]
+  slug varchar [unique, not null]
+  description text
+  is_active boolean [not null, default: true]
+  sort_order integer [not null, default: 0]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table collection_products {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  collection_id uuid [ref: > collections.id, not null]
+  product_id uuid [ref: > products.id, not null]
+  sort_order integer [not null, default: 0]
+
+  indexes {
+    (collection_id, product_id) [unique]
+  }
+}
