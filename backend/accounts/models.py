@@ -36,6 +36,9 @@ class UserManager(BaseUserManager):
             raise ValueError("Superuser must have is_staff=True and is_superuser=True")        
         return self._create_user(email, password, **extra_fields)
 
+    def get_by_natural_key(self, username): # Method Django calls to find a user by their USERNAME_FIELD. Overriding it makes the lookup case-insensitive.
+        return self.get(email__iexact=username)
+    
 class User(AbstractUser):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -58,7 +61,7 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    object = UserManager() # User uses UserManager and it's methods
+    objects = UserManager() # User uses UserManager and it's methods
     USERNAME_FIELD = "email" # main field for indentification
     REQUIRED_FIELDS = ["first_name", "last_name"] # For terminal command - required first_name and last_name as well 
 
