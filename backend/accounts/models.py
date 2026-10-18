@@ -72,3 +72,23 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+class OAuthAccount(models.Model):
+    class Provider(models.TextChoices):
+        GOOGLE = "google", "Google"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="oauth_accounts")
+    provider = models.CharField(max_length=20, choices=Provider.choices)
+    provider_user_id = models.CharField(max_length=255) # Google's "sub" claim. Sub is Google’s permanent ID for that account and never changes
+    email = models.EmailField() # email Google reported at link time, for reference
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta: 
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "provider_user_id"],
+                name="unique_oauth_identity",
+            ),
+        ]
