@@ -3,13 +3,10 @@ from datetime import timedelta
 
 import environ
 
-env = environ.Env()
-
-environ.Env.read_env()
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / ".env")
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-%s94!cx*raf-oeg6xra#qv=_n02*&3mj1^h!v-61jp)w6)0=@*'
