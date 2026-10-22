@@ -6,6 +6,8 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.contrib.auth.tokens import default_token_generator
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from rest_framework_simplejwt.tokens import RefreshToken
+
 
 from .models import OAuthAccount, User
 from .tokens import email_verification_token
@@ -94,3 +96,18 @@ def reset_password(user, new_password):
 
     for token in OutstandingToken.objects.filter(user=user):
         BlacklistedToken.objects.get_or_create(token=token)
+
+def blacklist_all_tokens(user):
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
+
+
+@transaction.atomic
+def change_password(user, new_password):
+    user.set_password(new_password)
+    user.save(update_fields=["password", "updated_at"])
+    blacklist_all_tokens(user)
+
+    refresh = RefreshToken.for_user(user)       
+
+    return {"refresh": str(refresh), "access": str(refresh.access_token)}

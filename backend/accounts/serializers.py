@@ -124,5 +124,27 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         attrs["user"] = user 
         return attrs
 
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
 
+    def validate_old_password(self, value):
+        user = self.context["request"].user 
+        if not user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
+
+    def validate(self, attrs):
+        user = self.context["request"].user 
+        if attrs["old_password"] == attrs["new_password"]:
+            raise serializers.ValidationError({"new_password": ["New password must be different from the current password."]})
+
+        try:
+            django_validate_password(attrs["new_password"], user=user)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"new_password": list(e.messages)})
+
+        return attrs
+
+    
 # TODO (OAuth): users without a usable password need email-code confirmation instead

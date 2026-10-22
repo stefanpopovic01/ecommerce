@@ -10,8 +10,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from .models import User
-from .services import get_or_create_google_user, send_verification_email, send_password_reset_email, reset_password
-from .serializers import UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer, DeleteAccountSerializer, GoogleLoginSerializer, VerifyEmailSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
+from .services import get_or_create_google_user, send_verification_email, send_password_reset_email, reset_password, change_password
+from .serializers import UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer, DeleteAccountSerializer, GoogleLoginSerializer, VerifyEmailSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ChangePasswordSerializer
 
 import logging
 logger = logging.getLogger(__name__)
@@ -128,3 +128,24 @@ class PasswordResetConfirmView(APIView):
 
         reset_password(serializer.validated_data["user"], serializer.validated_data["password"])
         return Response({"detail": "Password has been reset."})
+
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_change"
+
+    def post(self, request):
+        if not request.user.has_usable_password():
+            return Response(
+                {"detail": "Your account uses Google sign-in. Use password reset to set a password."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        tokens = change_password(request.user, serializer.validated_data["new_password"])
+
+        return Response(tokens)
