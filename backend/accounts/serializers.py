@@ -1,19 +1,22 @@
-from rest_framework import serializers
-from .models import User
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.contrib.auth.password_validation import validate_password as django_validate_password
-from phonenumber_field.serializerfields import PhoneNumberField
-
 from django.conf import settings
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token
-
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.password_validation import validate_password as django_validate_password
 
-from .tokens import email_verification_token
+from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+from phonenumber_field.serializerfields import PhoneNumberField
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+
+from .models import User
+from .tokens import email_verification_token, account_deletion_token
+
+
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField()
@@ -37,14 +40,22 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
         return user
-    
+
+
+
 
 class UserSerializer(serializers.ModelSerializer):
     phone = PhoneNumberField(required=False, allow_blank=True)
+    has_password = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'email_verified_at', 'created_at', 'updated_at']
         read_only_fields = ["id", "email", "role", "email_verified_at", "created_at", "updated_at"]
+
+    def get_has_password(self, obj):
+        return obj.has_usable_password()
+
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -52,6 +63,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user, context={'request': self.context.get('request')}).data
         return data
+
     
 
 class DeleteAccountSerializer(serializers.Serializer):
@@ -62,6 +74,7 @@ class DeleteAccountSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Incorrect password.")
         return value
+
 
 
 class GoogleLoginSerializer(serializers.Serializer):
@@ -79,6 +92,7 @@ class GoogleLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Google email is not verified.")
 
         return payload
+
 
 
 class VerifyEmailSerializer(serializers.Serializer):
@@ -102,8 +116,11 @@ class VerifyEmailSerializer(serializers.Serializer):
         return {"user": user}
 
 
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     uid = serializers.CharField()
@@ -123,6 +140,8 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         django_validate_password(attrs["password"], user=user) # Passing user=user to the password validator lets UserAttributeSimilarityValidator reject passwords too similar to the user’s own name or email
         attrs["user"] = user 
         return attrs
+
+
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
@@ -146,4 +165,20 @@ class ChangePasswordSerializer(serializers.Serializer):
 
         return attrs
 
-    
+
+
+class AccountDeletionConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    def validate(self, attrs):
+        try:
+            user_id = force_str(urlsafe_base64_decode(attrs["uid"]))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
+            raise serializers.ValidationError("Invalid or expired link.")
+
+        if not account_deletion_token.check_token(user, attrs["token"]):
+            raise serializers.ValidationError("Invalid or expired link.")
+
+        return {"user": user}   

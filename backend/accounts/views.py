@@ -1,5 +1,9 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from django.db import transaction
 from django.utils import timezone
+
 from rest_framework.views import APIView
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -10,11 +14,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from .models import User
-from .services import get_or_create_google_user, send_verification_email, send_password_reset_email, reset_password, change_password
+from .services import get_or_create_google_user, send_verification_email, send_password_reset_email, reset_password, change_password, delete_account, send_account_deletion_email
 from .serializers import UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer, DeleteAccountSerializer, GoogleLoginSerializer, VerifyEmailSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ChangePasswordSerializer
+from .serializers import AccountDeletionConfirmSerializer
 
-import logging
-logger = logging.getLogger(__name__)
+
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -27,10 +31,14 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.save()
         transaction.on_commit(lambda: send_verification_email(user)) # With on_commit, the email only goes out once the user is permanently saved.
 
+
+
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
     throttle_classes = [ScopedRateThrottle] 
     throttle_scope = "login"
+
+
 
 class MeView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
@@ -41,19 +49,24 @@ class MeView(generics.RetrieveUpdateDestroyAPIView):
         return self.request.user
 
     def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+
+        if not user.has_usable_password():
+            return Response(
+                {"detail": "Your account uses Google sign-in. Request a deletion link instead."},
+                status=status.HTTP_400_BAD_REQUEST,
+        )
+
         serializer = DeleteAccountSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
-        user = self.get_object()
-        with transaction.atomic():
-            for token in OutstandingToken.objects.filter(user=user):
-                BlacklistedToken.objects.get_or_create(token=token)
-            user.delete()
-
+        delete_account(user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 # Context as a dictionary where you can put extra information that a serializer needs but that isn't part of the data sent by the client.
 # data=request.data --- {"password": "myPassword123"} | context={"request": request} --- {"request": <HTTP request object>}
+
+
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
@@ -74,6 +87,7 @@ class GoogleLoginView(APIView):
         })
 
 
+
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
@@ -87,6 +101,8 @@ class VerifyEmailView(APIView):
             user.save(updated_fields=["email_verified_at", "updated_at"])
         return Response({"detail": "Email verified."})
 
+
+
 class ResendVerificationEmailView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_classes = [ScopedRateThrottle] 
@@ -98,6 +114,7 @@ class ResendVerificationEmailView(APIView):
 
         send_verification_email(request.user)
         return Response({"detail": "Verification email sent."})
+
 
 
 class PasswordResetRequestView(APIView):
@@ -122,6 +139,8 @@ class PasswordResetRequestView(APIView):
         return Response(
             {"detail": "If an account with this email exists, a reset link was sent."}
         )
+
+
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
@@ -153,3 +172,26 @@ class ChangePasswordView(APIView):
         tokens = change_password(request.user, serializer.validated_data["new_password"])
 
         return Response(tokens)
+
+
+
+class AccountDeletionRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "account_deletion"
+
+    def post(self, request):
+        send_account_deletion_email(request.user)
+        return Response({"detail": "A confirmation link was sent to your email."})
+
+
+
+class AccountDeletionConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = AccountDeletionConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        delete_account(serializer.validated_data["user"])
+        return Response(status=status.HTTP_204_NO_CONTENT)

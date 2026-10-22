@@ -4,8 +4,11 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from phonenumber_field.modelfields import PhoneNumberField
 from django.db.models.functions import Lower
 
-# Since username = None in AbstractUser, custom UserManager needs to be defined. Otherwise commands such as python manage.py createsuperuser will throw an error
-# Default comands such as create_user etc must be defined 
+
+
+''' Since username = None in AbstractUser, custom UserManager needs to be defined. 
+Otherwise commands such as python manage.py createsuperuser will throw an error
+Default comands such as create_user etc must be defined '''
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -38,7 +41,9 @@ class UserManager(BaseUserManager):
 
     def get_by_natural_key(self, username): # Method Django calls to find a user by their USERNAME_FIELD. Overriding it makes the lookup case-insensitive.
         return self.get(email__iexact=username)
-    
+
+
+
 class User(AbstractUser):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -72,6 +77,8 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
 
 class OAuthAccount(models.Model):
     class Provider(models.TextChoices):

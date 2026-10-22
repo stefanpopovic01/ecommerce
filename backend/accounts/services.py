@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
@@ -5,15 +8,14 @@ from django.core.mail import send_mail
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.contrib.auth.tokens import default_token_generator
+
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
-
 from .models import OAuthAccount, User
-from .tokens import email_verification_token
+from .tokens import email_verification_token, account_deletion_token
 
-import logging
-logger = logging.getLogger(__name__)
+
 
 @transaction.atomic
 def get_or_create_google_user(payload: dict) -> User:
@@ -55,6 +57,7 @@ def get_or_create_google_user(payload: dict) -> User:
     return user
 
 
+
 def send_verification_email(user):
     uid = urlsafe_base64_encode(force_bytes(user.pk)) # Turns the UUID into a URL-safe string.
     token = email_verification_token.make_token(user)
@@ -70,6 +73,8 @@ def send_verification_email(user):
         from_email=None, # uses DEFAULT_FROM_EMAIL
         recipient_list=[user.email],
     )
+
+
 
 def send_password_reset_email(user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -87,6 +92,8 @@ def send_password_reset_email(user):
         recipient_list=[user.email],
     )
 
+
+
 @transaction.atomic
 def reset_password(user, new_password):
     user.set_password(new_password)
@@ -97,9 +104,12 @@ def reset_password(user, new_password):
     for token in OutstandingToken.objects.filter(user=user):
         BlacklistedToken.objects.get_or_create(token=token)
 
+
+
 def blacklist_all_tokens(user):
     for token in OutstandingToken.objects.filter(user=user):
         BlacklistedToken.objects.get_or_create(token=token)
+
 
 
 @transaction.atomic
@@ -111,3 +121,28 @@ def change_password(user, new_password):
     refresh = RefreshToken.for_user(user)       
 
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
+
+
+
+@transaction.atomic
+def delete_account(user):
+    blacklist_all_tokens(user)
+    user.delete()
+
+
+
+def send_account_deletion_email(user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = account_deletion_token.make_token(user)
+    link = f"{settings.FRONTEND_URL}/confirm-account-deletion?uid={uid}&token={token}"
+
+    send_mail(
+        subject="Potvrda brisanja naloga",
+        message=(
+            f"Zdravo {user.first_name},\n\n"
+            f"Zatražili ste brisanje naloga. Za potvrdu kliknite na link:\n{link}\n\n"
+            f"Ako niste vi zatražili brisanje, ignorišite ovu poruku. Vaš nalog ostaje nepromenjen."
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+    )

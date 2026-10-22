@@ -11,3 +11,13 @@ class EmailVerificationTokenGenerator(PasswordResetTokenGenerator): # Inherits t
         return f"{user.pk}{user.email}{user.email_verified_at}{timestamp}" # Returns a string containing values associated with the user and token's timestamp.
 
 email_verification_token = EmailVerificationTokenGenerator() # Instance of our custom token generator - use it as: token = email_verification_token.make_token(user)
+
+
+
+class AccountDeletionTokenGenerator(PasswordResetTokenGenerator):
+    key_salt = "accounts.tokens.AccountDeletionTokenGenerator"
+
+    def _make_hash_value(self, user, timestamp):
+        return f"{user.pk}{user.email}{timestamp}"
+
+account_deletion_token = AccountDeletionTokenGenerator()
