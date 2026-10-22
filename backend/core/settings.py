@@ -117,15 +117,29 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
 MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+    "default": {
+        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "OPTIONS": {
+            "host": "smtp.gmail.com",
+            "port": 587,
+            "use_tls": True,
+            "username": env("EMAIL_HOST_USER"),
+            "password": env("EMAIL_HOST_PASSWORD"),
+            "timeout": 10,
+        },
     },
 }
+
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    "DEFAULT_THROTTLE_RATES": {
+        "email_verification": "3/hour",
+        "password_reset": "5/hour",
+    },
 }
 
 AUTH_USER_MODEL = "accounts.User"
@@ -139,3 +153,4 @@ SIMPLE_JWT = {
 }
 
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID")
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")

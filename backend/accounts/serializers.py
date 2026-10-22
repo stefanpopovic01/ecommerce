@@ -8,6 +8,13 @@ from django.conf import settings
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
+from django.contrib.auth.tokens import default_token_generator
+
+from .tokens import email_verification_token
+
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -30,6 +37,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
         return user
+    
 
 class UserSerializer(serializers.ModelSerializer):
     phone = PhoneNumberField(required=False, allow_blank=True)
@@ -38,11 +46,13 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'email_verified_at', 'created_at', 'updated_at']
         read_only_fields = ["id", "email", "role", "email_verified_at", "created_at", "updated_at"]
 
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user, context={'request': self.context.get('request')}).data
         return data
+    
 
 class DeleteAccountSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
@@ -52,6 +62,7 @@ class DeleteAccountSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Incorrect password.")
         return value
+
 
 class GoogleLoginSerializer(serializers.Serializer):
     credential = serializers.CharField()
@@ -69,15 +80,49 @@ class GoogleLoginSerializer(serializers.Serializer):
 
         return payload
 
-# payload = {
-#     "iss": "https://accounts.google.com",
-#     "sub": "109876543210987654321",
-#     "email": "user@example.com",
-#     "email_verified": True,
-#     "name": "Alex Example",
-#     "picture": "https://example.com/profile.jpg",
-#     "aud": "your-google-client-id",
-#     "exp": 1790000000,
-# }
+
+class VerifyEmailSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    def validate(self, attrs):
+        try:
+            user_id = force_str(urlsafe_base64_decode(attrs["uid"]))
+            user = User.objects.get(pk=user_id)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
+            raise serializers.ValidationError("Invalid verification link.")
+
+        # Already verified: treat as success (user clicked the link twice)
+        if user.email_verified_at is not None:
+            return {"user": user}
+
+        if not email_verification_token.check_token(user, attrs["token"]):
+            raise serializers.ValidationError("Invalid or expired verification link.")
+
+        return {"user": user}
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        try:
+            user_id = force_str(urlsafe_base64_decode(attrs["uid"]))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
+            raise serializers.ValidationError("Invalid or expired reset link.")
+
+        if not default_token_generator.check_token(user, attrs["token"]):
+            raise serializers.ValidationError("Invalid or expired reset link.")
+
+        django_validate_password(attrs["password"], user=user) # Passing user=user to the password validator lets UserAttributeSimilarityValidator reject passwords too similar to the user’s own name or email
+        attrs["user"] = user 
+        return attrs
+
 
 # TODO (OAuth): users without a usable password need email-code confirmation instead

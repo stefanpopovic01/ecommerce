@@ -1,7 +1,17 @@
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from django.contrib.auth.tokens import default_token_generator
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from .models import OAuthAccount, User
+from .tokens import email_verification_token
+
+import logging
+logger = logging.getLogger(__name__)
 
 @transaction.atomic
 def get_or_create_google_user(payload: dict) -> User:
@@ -17,17 +27,13 @@ def get_or_create_google_user(payload: dict) -> User:
     if link:
         return link.user
 
-    # "payload: dict" just a hint, payload is expected to be dictionary
-    # -> User just a hint, return value of function is expected to be User model instance.
-
     # 2. Existing account with this email: link Google to it
     user = User.objects.filter(email__iexact=email).first()
     if user:
         if user.email_verified_at is None:
             user.set_unusable_password()
             user.email_verified_at = timezone.now()
-            user.save(update_fields=["password", "email_verified_at"])
-
+            user.save(update_fields=["password", "email_verified_at", "updated_at"])
     else:
         # 3. Brand-new user
         user = User.objects.create_user(
@@ -45,3 +51,46 @@ def get_or_create_google_user(payload: dict) -> User:
         email=email
     )
     return user
+
+
+def send_verification_email(user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk)) # Turns the UUID into a URL-safe string.
+    token = email_verification_token.make_token(user)
+    link = f"{settings.FRONTEND_URL}/verify-email?uid={uid}&token={token}"
+
+    send_mail(
+        subject="Potvrdite vašu email adresu",    
+        message=(
+            f"Zdravo {user.first_name},\n\n"
+            f"Potvrdite email adresu klikom na link:\n{link}\n\n"
+            f"Link važi 3 dana. Ako niste napravili nalog, ignorišite ovu poruku."
+        ),
+        from_email=None, # uses DEFAULT_FROM_EMAIL
+        recipient_list=[user.email],
+    )
+
+def send_password_reset_email(user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
+
+    send_mail(
+        subject="Resetovanje lozinke",
+        message=(
+            f"Zdravo {user.first_name},\n\n"
+            f"Za novu lozinku kliknite na link:\n{link}\n\n"
+            f"Ako niste tražili promenu lozinke, ignorišite ovu poruku."
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+    )
+
+@transaction.atomic
+def reset_password(user, new_password):
+    user.set_password(new_password)
+    if user.email_verified_at is None:
+        user.email_verified_at = timezone.now()
+    user.save(update_fields=["password", "email_verified_at", "updated_at"])
+
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
