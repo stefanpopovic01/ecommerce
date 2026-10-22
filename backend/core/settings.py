@@ -136,7 +136,9 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "email_verification": "3/hour",
         "password_reset": "5/hour",
-        "password_change": "5/hour"
+        "password_change": "5/hour",
+        "login": "10/min",
+        "register": "5/hour"
     },
 }
 

@@ -147,4 +147,3 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
     
-# TODO (OAuth): users without a usable password need email-code confirmation instead

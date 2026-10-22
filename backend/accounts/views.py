@@ -20,6 +20,8 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle] 
+    throttle_scope = "register"
 
     def perform_create(self, serializer):
         user = serializer.save()
@@ -27,6 +29,8 @@ class RegisterView(generics.CreateAPIView):
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle] 
+    throttle_scope = "login"
 
 class MeView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
