@@ -34,7 +34,6 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("role", User.Role.ADMIN)    
         if not extra_fields["is_staff"] or not extra_fields["is_superuser"]:
             raise ValueError("Superuser must have is_staff=True and is_superuser=True")        
         return self._create_user(email, password, **extra_fields)
@@ -56,12 +55,6 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     phone = PhoneNumberField(blank=True)
 
-    class Role(models.TextChoices):
-        CUSTOMER = 'customer', 'Customer'
-        ADMIN = 'admin', 'Admin'
-        STAFF = 'staff', 'Staff'
-
-    role = models.CharField(max_length=20, choices= Role.choices, default=Role.CUSTOMER)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
