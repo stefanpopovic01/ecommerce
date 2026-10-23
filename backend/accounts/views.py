@@ -98,7 +98,7 @@ class VerifyEmailView(APIView):
         user = serializer.validated_data["user"]
         if user.email_verified_at is None:
             user.email_verified_at = timezone.now()
-            user.save(updated_fields=["email_verified_at", "updated_at"])
+            user.save(update_fields=["email_verified_at", "updated_at"])
         return Response({"detail": "Email verified."})
 
 
@@ -181,9 +181,13 @@ class AccountDeletionRequestView(APIView):
     throttle_scope = "account_deletion"
 
     def post(self, request):
+        if request.user.has_usable_password():
+            return Response(
+                {"detail": "Confirm deletion with your password instead."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         send_account_deletion_email(request.user)
         return Response({"detail": "A confirmation link was sent to your email."})
-
 
 
 class AccountDeletionConfirmView(APIView):

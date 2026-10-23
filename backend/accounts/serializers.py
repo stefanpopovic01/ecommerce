@@ -175,7 +175,11 @@ class AccountDeletionConfirmSerializer(serializers.Serializer):
         try:
             user_id = force_str(urlsafe_base64_decode(attrs["uid"]))
             user = User.objects.get(pk=user_id, is_active=True)
+            
         except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
+            raise serializers.ValidationError("Invalid or expired link.")
+
+        if user.has_usable_password():
             raise serializers.ValidationError("Invalid or expired link.")
 
         if not account_deletion_token.check_token(user, attrs["token"]):

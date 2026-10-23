@@ -20,3 +20,15 @@ urlpatterns = [
     path("me/delete/confirm/", AccountDeletionConfirmView.as_view(), name="account_deletion_confirm"),  # POST {"uid", "token"}
     path('me/', MeView.as_view(), name='me')
 ]
+
+
+'''
+Left to be tested:
+
+urlpatterns = [
+    path('google/', GoogleLoginView.as_view(), name='google_login'), # POST {"credential": "..."}
+    path("me/delete/request/", AccountDeletionRequestView.as_view(), name="account_deletion_request"),  # POST, authenticated
+    path("me/delete/confirm/", AccountDeletionConfirmView.as_view(), name="account_deletion_confirm"),  # POST {"uid", "token"}
+]
+
+'''
