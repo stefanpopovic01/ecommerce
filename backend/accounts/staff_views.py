@@ -1,4 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
+
 from rest_framework import generics, viewsets
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAdminUser
@@ -19,7 +21,7 @@ from .staff_serializers import (
     InviteStaffSerializer
 )
 
-from .services import invite_staff
+from .services import invite_staff, blacklist_all_tokens, send_password_reset_email, send_verification_email
 
 class StaffMeView(generics.RetrieveAPIView):
     serializer_class = StaffMeSerializer
@@ -77,3 +79,42 @@ class StaffUserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         set_staff_groups(user, serializer.validated_data["groups"])
         return Response(StaffUserDetailSerializer(user).data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdminUser, require_perm("accounts.change_user")])
+    def deactivate(self, request, pk=None):
+        user = self.get_object()
+        if user == request.user:
+            return Response({"detail": "You cannot deactivate your own account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            user.is_active = False
+            user.save(update_fields=["is_active", "updated_at"])
+            blacklist_all_tokens(user)
+        
+        return Response(StaffUserDetailSerializer(user).data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdminUser, require_perm("accounts.change_user")])
+    def activate(self, request, pk=None):
+        user = self.get_object()
+        user.is_active = True
+        user.save(update_fields=["is_active", "updated_at"])
+
+        return Response(StaffUserDetailSerializer(user).data)
+
+    @action(detail=True, methods=["post"], url_path="send-password-reset", permission_classes=[IsAdminUser, require_perm("accounts.change_user")])
+    def send_password_reset(self, request, pk=None):
+        user = self.get_object()
+        if not user.is_active:
+            return Response({"detail": "User is deactivated."}, status=status.HTTP_400_BAD_REQUEST)
+
+        send_password_reset_email(user)
+
+        return Response({"detail": "Password reset email sent."})
+
+    @action(detail=True, methods=["post"], url_path="resend-verification", permission_classes=[IsAdminUser, require_perm("accounts.change_user")])
+    def resend_verification(self, request, pk=None):
+        user = self.get_object()
+        if user.email_verified_at is not None:
+            return Response({"detail": "Email already verified."}, status=status.HTTP_400_BAD_REQUEST)
+        send_verification_email(user)
+        return Response({"detail": "Verification email sent."})
