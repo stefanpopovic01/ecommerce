@@ -1,3 +1,6 @@
+from django.conf import settings
+from django.contrib.auth.models import Group
+
 from rest_framework import serializers
 from phonenumber_field.serializerfields import PhoneNumberField
 
@@ -47,3 +50,40 @@ class StaffUserDetailSerializer(serializers.ModelSerializer):
 
     def get_has_google(self, obj):
         return obj.oauth_accounts.exists()
+
+
+
+def validate_assignable_groups(names):
+    allowed = set(settings.ASSIGNABLE_STAFF_GROUPS)
+    invalid = set(names) - allowed
+    if invalid:
+        raise serializers.ValidationError(f"Groups not assignable: {', '.join(sorted(invalid))}")
+    groups = list(Group.objects.filter(name__in=names))
+    if len(groups) != len(set(names)):
+        raise serializers.ValidationError("One or more groups do not exist.")
+    return groups
+
+
+
+class InviteStaffSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    groups = serializers.ListField(child=serializers.CharField(), allow_empty=False)
+
+    def validate_email(self, value):
+        value = value.lower()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_groups(self, value):
+        return validate_assignable_groups(value)
+
+
+
+class SetGroupsSerializer(serializers.Serializer):
+    groups = serializers.ListField(child=serializers.CharField(), allow_empty=False)
+
+    def validate_groups(self, value):
+        return validate_assignable_groups(value)

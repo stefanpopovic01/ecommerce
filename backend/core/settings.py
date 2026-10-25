@@ -156,3 +156,6 @@ SIMPLE_JWT = {
 
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID")
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")
+DASHBOARD_URL = env("DASHBOARD_URL", default="http://localhost:3000") 
+
+ASSIGNABLE_STAFF_GROUPS = ["Osoblje", "Administrator"]

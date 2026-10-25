@@ -146,3 +146,41 @@ def send_account_deletion_email(user):
         from_email=None,
         recipient_list=[user.email],
     )
+
+
+
+@transaction.atomic
+def invite_staff(email, first_name, last_name, groups):
+    user = User.objects.create_user(
+        email=email,
+        password=None,  # unusable until they set one via the invite link
+        first_name=first_name,
+        last_name=last_name,
+        is_staff=True,
+    )
+    user.groups.set(groups)
+    transaction.on_commit(lambda: send_staff_invite_email(user))
+    return user
+
+
+def send_staff_invite_email(user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = f"{settings.DASHBOARD_URL}/set-password?uid={uid}&token={token}"
+
+    send_mail(
+        subject="Pozivnica za administraciju prodavnice",
+        message=(
+            f"Zdravo {user.first_name},\n\n"
+            f"Dodati ste kao član osoblja. Postavite lozinku klikom na link:\n{link}\n\n"
+            f"Link važi 3 dana."
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+    )
+
+
+@transaction.atomic
+def set_staff_groups(user, groups):
+    user.groups.set(groups)
+    blacklist_all_tokens(user)  # force re-login so the dashboard reloads their new permissions
