@@ -137,7 +137,7 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
         "password_change": "5/hour",
         "login": "10/min",
-        "register": "500/hour",
+        "register": "5/hour",
         "account_deletion": "3/hour",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
