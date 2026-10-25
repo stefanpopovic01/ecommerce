@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'rest_framework',
     "phonenumber_field",
     "rest_framework_simplejwt.token_blacklist",
+    "django_filters",
     'accounts',
 ]
 
@@ -136,9 +137,11 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
         "password_change": "5/hour",
         "login": "10/min",
-        "register": "5/hour",
+        "register": "500/hour",
         "account_deletion": "3/hour",
     },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    'PAGE_SIZE': 25
 }
 
 AUTH_USER_MODEL = "accounts.User"

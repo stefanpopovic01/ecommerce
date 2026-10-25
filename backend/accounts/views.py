@@ -57,6 +57,12 @@ class MeView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
         )
 
+        if user.is_staff:
+            return Response(
+                {"detail": "Staff accounts are managed by an administrator."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = DeleteAccountSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 

@@ -5,16 +5,9 @@ Table users {
   first_name varchar(150) [not null]
   last_name varchar(150) [not null]
   phone varchar
-  role user_role [not null, default: 'customer']
   email_verified_at timestamp
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
-}
-
-enum user_role {
-  customer
-  admin
-  staff
 }
 
 Table oauth_accounts {
