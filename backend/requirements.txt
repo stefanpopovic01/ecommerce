@@ -4,6 +4,7 @@ cffi==2.1.1
 charset-normalizer==3.5.2
 cryptography==50.0.2
 Django==6.1.2
+django-countries==9.1.0
 django-environ==0.14.0
 django-filter==26.2
 django-phonenumber-field==8.5.0
@@ -27,4 +28,5 @@ pytest==9.1.1
 pytest-django==4.14.0
 requests==2.34.2
 sqlparse==0.6.0
+typing_extensions==4.16.0
 urllib3==2.8.0

@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "phonenumber_field",
     "rest_framework_simplejwt.token_blacklist",
     "django_filters",
+    "django_countries",
     'accounts',
 ]
 

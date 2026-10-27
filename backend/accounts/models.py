@@ -1,9 +1,10 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
-from phonenumber_field.modelfields import PhoneNumberField
 from django.db.models.functions import Lower
 
+from phonenumber_field.modelfields import PhoneNumberField
+from django_countries.fields import CountryField
 
 
 ''' Since username = None in AbstractUser, custom UserManager needs to be defined. 
@@ -92,3 +93,41 @@ class OAuthAccount(models.Model):
                 name="unique_oauth_identity",
             ),
         ]
+
+
+
+class Address(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="addresses")
+
+    label = models.CharField(max_length=150, blank=True) # Home, Work ...
+    full_name = models.CharField(max_length=256)
+    line1 = models.CharField(max_length=256)
+    line2 = models.CharField(max_length=256, blank=True)
+    city = models.CharField(max_length=256)
+    state = models.CharField(max_length=256, blank=True)
+    postal_code = models.CharField(max_length=64)
+    country = CountryField(default="RS") # "ISO 3166-1 alpha-2, e.g. RS"
+    phone = PhoneNumberField(blank=True)
+    is_default_shipping = models.BooleanField(default=False)
+    is_default_billing = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(is_default_shipping=True),
+                name="unique_default_shipping_user"
+            ),
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(is_default_billing=True),
+                name="unique_default_billing_user"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.full_name}, {self.line1}, {self.city}"
+    
