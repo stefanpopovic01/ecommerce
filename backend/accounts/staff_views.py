@@ -18,10 +18,11 @@ from .staff_serializers import (
     StaffMeSerializer,
     StaffUserDetailSerializer,
     StaffUserListSerializer,
-    InviteStaffSerializer
+    InviteStaffSerializer,
+    SetGroupsSerializer
 )
 
-from .services import invite_staff, blacklist_all_tokens, send_password_reset_email, send_verification_email
+from .services import invite_staff, blacklist_all_tokens, send_password_reset_email, send_verification_email, set_staff_groups
 
 class StaffMeView(generics.RetrieveAPIView):
     serializer_class = StaffMeSerializer
