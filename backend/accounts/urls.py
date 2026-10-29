@@ -1,9 +1,13 @@
-from django.urls import path
+from django.urls import path, include
 
 from rest_framework_simplejwt.views import TokenRefreshView, TokenBlacklistView
+from rest_framework.routers import DefaultRouter
 
 from .views import RegisterView, MyTokenObtainPairView, MeView, GoogleLoginView, VerifyEmailView, ResendVerificationEmailView, PasswordResetRequestView, PasswordResetConfirmView, ChangePasswordView
-from .views import AccountDeletionConfirmView, AccountDeletionRequestView
+from .views import AccountDeletionConfirmView, AccountDeletionRequestView, AddressViewSet
+
+router = DefaultRouter()
+router.register("addresses", AddressViewSet, basename="address")
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='auth_register'), # POST
@@ -18,17 +22,6 @@ urlpatterns = [
     path("password-change/", ChangePasswordView.as_view(), name="password_change"),  # POST {"old_password", "new_password"}, authenticated
     path("me/delete/request/", AccountDeletionRequestView.as_view(), name="account_deletion_request"),  # POST, authenticated
     path("me/delete/confirm/", AccountDeletionConfirmView.as_view(), name="account_deletion_confirm"),  # POST {"uid", "token"}
-    path('me/', MeView.as_view(), name='me')
+    path('me/', MeView.as_view(), name='me'),
+    path("", include(router.urls))
 ]
-
-
-'''
-Left to be tested:
-
-urlpatterns = [
-    path('google/', GoogleLoginView.as_view(), name='google_login'), # POST {"credential": "..."}
-    path("me/delete/request/", AccountDeletionRequestView.as_view(), name="account_deletion_request"),  # POST, authenticated
-    path("me/delete/confirm/", AccountDeletionConfirmView.as_view(), name="account_deletion_confirm"),  # POST {"uid", "token"}
-]
-
-'''

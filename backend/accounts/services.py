@@ -107,8 +107,10 @@ def reset_password(user, new_password):
 
 
 def blacklist_all_tokens(user):
-    for token in OutstandingToken.objects.filter(user=user):
-        BlacklistedToken.objects.get_or_create(token=token)
+    tokens = OutstandingToken.objects.filter(user=user)
+    BlacklistedToken.objects.bulk_create(
+        [BlacklistedToken(token=t) for t in tokens], ignore_conflicts=True
+    )
 
 
 

@@ -12,7 +12,7 @@ from phonenumber_field.serializerfields import PhoneNumberField
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
-from .models import User
+from .models import User, Address
 from .tokens import email_verification_token, account_deletion_token
 
 
@@ -186,3 +186,23 @@ class AccountDeletionConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid or expired link.")
 
         return {"user": user}   
+
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta: 
+        model = Address
+        fields = ["id", "label", "full_name", "line1", "line2", "city", "state", "postal_code", "country", "phone", "is_default_shipping", "is_default_billing", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        request = self.context["request"]
+
+        address_count = Address.objects.filter(user=request.user).count()
+
+        if address_count >= 10 and self.instance is None:
+            raise serializers.ValidationError(
+                {"detail": "You cannot have more than 10 addresses."}
+            )
+
+        return attrs

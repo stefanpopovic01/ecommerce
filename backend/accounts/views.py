@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from rest_framework.views import APIView
 from rest_framework import generics, status
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -13,10 +14,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from .models import User
+from .models import User, Address
 from .services import get_or_create_google_user, send_verification_email, send_password_reset_email, reset_password, change_password, delete_account, send_account_deletion_email
 from .serializers import UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer, DeleteAccountSerializer, GoogleLoginSerializer, VerifyEmailSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ChangePasswordSerializer
-from .serializers import AccountDeletionConfirmSerializer
+from .serializers import AccountDeletionConfirmSerializer, AddressSerializer
 
 
 
@@ -205,3 +206,61 @@ class AccountDeletionConfirmView(APIView):
 
         delete_account(serializer.validated_data["user"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+class AddressViewSet(ModelViewSet):
+    serializer_class = AddressSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return Address.objects.filter(user=self.request.user).order_by(
+            "-is_default_shipping", "-is_default_billing", "-created_at"
+        )
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        has_addresses = Address.objects.filter(user=self.request.user).exists()
+
+        is_default_shipping = serializer.validated_data.get("is_default_shipping")
+        is_default_billing = serializer.validated_data.get("is_default_billing")
+
+
+        if not has_addresses:
+            serializer.save(
+                user=self.request.user,
+                is_default_shipping=True,
+                is_default_billing=True,
+            )
+        else:
+            if is_default_billing is True:
+                Address.objects.filter(user=self.request.user, is_default_billing=True).update(is_default_billing=False)
+            if is_default_shipping is True:
+                Address.objects.filter(user=self.request.user, is_default_shipping=True).update(is_default_shipping=False)
+            serializer.save(user=self.request.user)
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+
+        is_default_shipping = serializer.validated_data.get("is_default_shipping")
+        is_default_billing = serializer.validated_data.get("is_default_billing")
+
+        if is_default_billing is True:
+            Address.objects.filter(
+                user=self.request.user,
+                is_default_billing=True,
+            ).exclude(pk=serializer.instance.pk).update(
+                is_default_billing=False
+            )
+
+        if is_default_shipping is True:
+            Address.objects.filter(
+                user=self.request.user,
+                is_default_shipping=True,
+            ).exclude(pk=serializer.instance.pk).update(
+                is_default_shipping=False
+            )
+
+        serializer.save()
+
