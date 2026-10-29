@@ -2,6 +2,9 @@ import uuid
 from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Lower
+from django.core.exceptions import ValidationError
+
+from cloudinary.models import CloudinaryField
 
 
 
@@ -112,3 +115,25 @@ class Inventory(models.Model):
 
     def __str__(self):
         return f"{self.variant.sku}: {self.quantity}"
+
+
+
+class ProductImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
+    variant = models.ForeignKey(ProductVariant, on_delete=models.SET_NULL, null=True, blank=True, related_name="images")
+    image = CloudinaryField("image", folder="products")
+    alt_text = models.CharField(max_length=255, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "created_at"]
+
+    def __str__(self):
+        return f"{self.product.name} #{self.sort_order}"
+
+    def clean(self):
+        if self.variant_id and self.variant.product_id != self.product_id:
+            raise ValidationError({"variant": "This variant belongs to a different product."})

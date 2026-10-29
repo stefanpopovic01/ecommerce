@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import timedelta
 
 import environ
+import cloudinary
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -16,6 +17,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+cloudinary.config(cloudinary_url=env("CLOUDINARY_URL"), secure=True)
 
 # Application definition
 
