@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "django_filters",
     "django_countries",
     'accounts',
+    "catalog",
 ]
 
 MIDDLEWARE = [
