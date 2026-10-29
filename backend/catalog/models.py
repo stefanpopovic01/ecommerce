@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.db.models import F, Q
 from django.db.models.functions import Lower
 
 
@@ -57,3 +58,57 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+
+
+class ProductVariant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variants")
+    sku = models.CharField(max_length=255, unique=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    compare_at_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    attributes = models.JSONField(default=dict, blank=True)
+    weight_grams = models.PositiveIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(price__gte=0),
+                name="variant_price_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(compare_at_price__isnull=True) | Q(compare_at_price__gt=F("price")),
+                name="variant_compare_at_price_gt_price",
+            ),
+        ]
+
+    def __str__(self):
+        return self.sku
+
+
+
+class Inventory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    variant = models.OneToOneField(ProductVariant, on_delete=models.CASCADE, related_name="inventory")
+    quantity = models.PositiveIntegerField(default=0)
+    reserved_quantity = models.PositiveIntegerField(default=0)
+    low_stock_threshold = models.PositiveIntegerField(default=5) # Only x left - low-stock alerts.
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name_plural = "inventory"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(reserved_quantity__lte=F("quantity")),
+                name="inventory_reserved_lte_quantity",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.variant.sku}: {self.quantity}"
