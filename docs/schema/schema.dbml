@@ -112,6 +112,33 @@ Table inventory {
   updated_at timestamp [default: `now()`]
 }
 
+Table stock_movements {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  variant_id uuid [ref: > product_variants.id, not null]
+  quantity_change integer [not null, default: 0] // change to shelf quantity: -2 sold, +20 received
+  reserved_change integer [not null, default: 0] // change to reserved quantity: +2 reserved, -2 released
+  quantity_after integer [not null] // shelf quantity right after this change
+  reserved_after integer [not null] // reserved quantity right after this change
+  reason stock_movement_reason [not null]
+  order_id uuid [ref: >? orders.id] // which order caused this change, if any
+  created_by uuid [ref: >? users.id] // null when the system made the change
+  note text
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (variant_id, created_at)
+  }
+}
+
+enum stock_movement_reason {
+  received     // delivery arrived
+  sale         // order paid, stock leaves the shelf
+  reservation  // checkout started, stock held
+  release      // payment failed or reservation expired
+  return       // returned item put back on the shelf
+  correction   // manual fix after a stock count
+}
+
 Table reviews {
   id uuid [primary key, default: `gen_random_uuid()`]
   product_id uuid [ref: > products.id, not null]
