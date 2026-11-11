@@ -1,12 +1,13 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.db.models import F, Q
 from django.db.models.functions import Lower
 from django.core.exceptions import ValidationError
 
 from cloudinary.models import CloudinaryField
 
-
+from accounts.models import User
 
 class Category(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -137,3 +138,37 @@ class ProductImage(models.Model):
     def clean(self):
         if self.variant_id and self.variant.product_id != self.product_id:
             raise ValidationError({"variant": "This variant belongs to a different product."})
+
+
+
+class StockMovement(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    variant = models.ForeignKey(ProductVariant, on_delete=models.PROTECT, related_name="stock_movements")
+    quantity_change = models.IntegerField(default=0)
+    reserved_change = models.IntegerField(default=0)
+    quantity_after = models.IntegerField()
+    reserved_after = models.IntegerField()
+
+    class Reason(models.TextChoices):
+        RECEIVED = 'received', 'Received'
+        SALE = 'sale', 'Sale'
+        RESERVATION = 'reservation', 'Reservation'
+        RELEASE = 'release', 'Release'
+        RETURN = 'return', 'Return'
+        CORRECTION = 'correction', 'Correction'
+
+    reason = models.CharField(max_length=16, choices=Reason.choices)
+    # order FK TO ORDER LATER 
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+    null=True, blank=True, related_name="stock_movements")
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["variant", "-created_at"], name="stockmove_variant_created_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.variant_id} {self.reason} {self.quantity_change:+}"
